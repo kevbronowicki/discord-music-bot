@@ -1,0 +1,8 @@
+boto3==1.34.144
+botocore==1.34.144
+discord==2.3.2
+discord.py[voice]==2.6.2
+python-dotenv==0.15.0
+youtube-dl==2021.12.17
+yt-dlp==2025.9.26
+google-api-python-client==2.149.0

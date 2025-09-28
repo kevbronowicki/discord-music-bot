@@ -1,0 +1,8 @@
+/.env
+/.python-version
+/cookies.txt
+/__pycache__
+/music
+/temp
+/tts
+/cogs/__pycache__
