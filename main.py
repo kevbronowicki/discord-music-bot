@@ -1,4 +1,3 @@
-# main.py
 import os
 import asyncio
 import logging
@@ -9,7 +8,7 @@ from dotenv import load_dotenv
 import config
 
 # Set up basic logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(levelname)s:%(name)s: %(message)s')
 
 # Load environment variables from .env file
 load_dotenv()
@@ -17,10 +16,16 @@ DISCORD_TOKEN = os.getenv("discord_token")
 
 # Define the bot's intents
 intents = discord.Intents.default()
-intents.message_content = True  # Required to read message content
+intents.message_content = True
 intents.voice_states = True
 
-# Bot class that will be used to run the bot
+# The order in which to load the cogs. PlaybackManager must be first.
+COGS_TO_LOAD = [
+    'cogs.playback_cog',
+    'cogs.music_cog',
+    'cogs.tts_cog',
+]
+
 class MusicBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix=commands.when_mentioned_or(config.BOT_PREFIX), intents=intents)
@@ -31,13 +36,13 @@ class MusicBot(commands.Bot):
         
     async def setup_hook(self):
         """This is called when the bot logs in."""
-        for filename in os.listdir('./cogs'):
-            if filename.endswith('.py'):
-                try:
-                    await self.load_extension(f'cogs.{filename[:-3]}')
-                    logging.info(f"Loaded cog: {filename}")
-                except Exception as e:
-                    logging.error(f'Failed to load extension {filename}.', exc_info=e)
+        logging.info("Loading cogs...")
+        for extension in COGS_TO_LOAD:
+            try:
+                await self.load_extension(extension)
+                logging.info(f"Successfully loaded {extension}")
+            except Exception as e:
+                logging.error(f'Failed to load extension {extension}.', exc_info=e)
 
 async def main():
     bot = MusicBot()

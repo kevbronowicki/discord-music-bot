@@ -10,6 +10,11 @@ BOT_PREFIX = ";"
 # --- AUDIO ---
 DEFAULT_VOLUME = 0.15
 
+# --- PLAYBACK ---
+# Timeout in seconds for the bot to disconnect if the queue is empty.
+# Can be overridden by setting PLAYBACK_TIMEOUT in the .env file.
+PLAYBACK_TIMEOUT = float(os.getenv('PLAYBACK_TIMEOUT', '300.0')) # Default to 300 seconds (5 minutes)
+
 # --- YOUTUBE / YT-DLP ---
 YOUTUBE_API_KEY = os.getenv("youtube_api_key")
 YT_DLP_OPTIONS = {
