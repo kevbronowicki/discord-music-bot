@@ -62,7 +62,7 @@ class Music(commands.Cog, name="Music"):
         else: # It's a single video
             return [(data['title'], data.get('webpage_url'), data.get('url'))]
     
-    async def _enqueue_youtube_songs(self, ctx: commands.Context, query: str, shuffle=False, ffmpeg_options=''):
+    async def _enqueue_youtube_songs(self, ctx: commands.Context, query: str, shuffle=False, ffmpeg_filters: str = ''):
         """Fetches songs from YouTube and enqueues them via the PlaybackManager."""
         async with ctx.typing():
             try:
@@ -77,9 +77,15 @@ class Music(commands.Cog, name="Music"):
                     if not source_url:
                         continue
 
+                    # Build a single filter chain for FFmpeg
+                    filters = [f"volume={config.EFFECTIVE_VOLUME}"]
+                    if ffmpeg_filters:
+                        filters.append(ffmpeg_filters)
+                    filter_chain = ','.join(filters)
+
                     ffmpeg_opts = {
                         'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-                        'options': f'-vn {ffmpeg_options} -filter:a "volume={config.EFFECTIVE_VOLUME}"'
+                        'options': f'-vn -filter:a "{filter_chain}"'
                     }
                     
                     song = Song(
@@ -108,7 +114,7 @@ class Music(commands.Cog, name="Music"):
         
     @commands.command(name='pboosted', aliases=['pb'], help='Plays a song with extra bass.')
     async def play_boosted(self, ctx: commands.Context, *, query: str):
-        await self._enqueue_youtube_songs(ctx, query, ffmpeg_options='-af bass=g=20')
+        await self._enqueue_youtube_songs(ctx, query, ffmpeg_filters='bass=g=20')
 
     @commands.command(name='pshuffled', aliases=['ps'], help='Plays and shuffles a YouTube playlist.')
     async def play_shuffled(self, ctx: commands.Context, *, playlist_url: str):

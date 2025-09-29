@@ -60,17 +60,23 @@ class LocalMusic(commands.Cog, name="LocalMusic"):
                 
     @commands.command(name='playlocalboosted', aliases=["plb", "localboosted"], help='Queue a local file with bass boost.')
     async def local_boosted(self, ctx: commands.Context, *, filename: str):
-       await self._play_local(ctx, filename, ffmpeg_options='-af bass=g=20')
+        await self._play_local(ctx, filename, ffmpeg_filters='bass=g=20')
 
-    async def _play_local(self, ctx: commands.Context, filename: str, ffmpeg_options=''):
+    async def _play_local(self, ctx: commands.Context, filename: str, ffmpeg_filters: str = ''):
         async with ctx.typing():
             try:
                 path = self._resolve_local_path(filename)
                 if not os.path.exists(path):
                     return await ctx.send(f"File not found in music dir: `{filename}`")
 
+                # Build a single filter chain for FFmpeg
+                filters = [f"volume={config.EFFECTIVE_VOLUME}"]
+                if ffmpeg_filters:
+                    filters.append(ffmpeg_filters)
+                filter_chain = ','.join(filters)
+
                 ffmpeg_opts = {
-                    'options': f'-vn {ffmpeg_options} -filter:a "volume={config.EFFECTIVE_VOLUME}"'
+                    'options': f'-vn -filter:a "{filter_chain}"'
                 }
 
                 song = Song(
