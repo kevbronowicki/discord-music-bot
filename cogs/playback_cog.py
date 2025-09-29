@@ -147,5 +147,70 @@ class PlaybackManager(commands.Cog, name="PlaybackManager"):
             else:
                 await ctx.send("Queue is already empty and nothing is playing.")
 
+    @commands.command(name='seek', help='Seek current song to given position (e.g., 90 or 1:30).')
+    async def seek(self, ctx: commands.Context, position: str):
+        state = self._get_or_create_state(ctx.guild)
+        if not state.voice_client or not state.voice_client.is_connected() or not state.current_song:
+            return await ctx.send("Nothing is playing to seek.")
+
+        # Parse position into seconds (supports SS or MM:SS or HH:MM:SS)
+        def parse_timestamp(ts: str) -> int:
+            parts = ts.strip().split(":")
+            try:
+                if len(parts) == 1:
+                    return max(0, int(float(parts[0])))
+                if len(parts) == 2:
+                    m, s = int(parts[0]), int(parts[1])
+                    return max(0, m * 60 + s)
+                if len(parts) == 3:
+                    h, m, s = int(parts[0]), int(parts[1]), int(parts[2])
+                    return max(0, h * 3600 + m * 60 + s)
+            except Exception:
+                return -1
+            return -1
+
+        seconds = parse_timestamp(position)
+        if seconds < 0:
+            return await ctx.send("Invalid time format. Use seconds or MM:SS or HH:MM:SS.")
+
+        # Build new ffmpeg options with -ss seek while preserving filters
+        current = state.current_song
+        existing_opts = current.ffmpeg_options or {}
+        options_part = existing_opts.get('options', '-vn')
+
+        is_remote = not current.is_local and not current.is_tts
+        reconnect = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5' if is_remote else ''
+        before_options = f"-ss {seconds} {reconnect}".strip()
+
+        seek_opts = {
+            'before_options': before_options,
+            'options': options_part
+        }
+
+        # Create a new Song that will start from the offset; set stream_url None to refresh if needed
+        seek_song = Song(
+            title=current.title,
+            source_url=current.source_url,
+            stream_url=None,
+            requester=current.requester,
+            is_tts=current.is_tts,
+            is_local=current.is_local,
+            ffmpeg_options=seek_opts
+        )
+
+        # Place at the front of the queue and stop current playback to trigger immediate restart
+        try:
+            state.queue._queue.appendleft(seek_song)
+        except Exception:
+            await state.queue.put(seek_song)
+
+        if state.voice_client.is_playing():
+            await ctx.send(f":fast_forward: Seeking to {seconds}s…")
+            # Prevent duplicate Now Playing announcement caused by restart
+            state.suppress_next_announcement = True
+            state.voice_client.stop()
+        else:
+            await ctx.send(f"Queued seek to {seconds}s for the current track.")
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(PlaybackManager(bot))

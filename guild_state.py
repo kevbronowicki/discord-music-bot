@@ -18,6 +18,7 @@ class GuildState:
         self.announcement_channel_id: int = None
         self.next_song_event = asyncio.Event()
         self._prefetch_task: asyncio.Task = None
+        self.suppress_next_announcement: bool = False
 
     async def _playback_loop(self):
         """The main loop that fetches from the queue and plays songs."""
@@ -53,10 +54,12 @@ class GuildState:
 
                 self.voice_client.play(source, after=lambda e: self.bot.loop.call_soon_threadsafe(self._song_finished_callback, e))
 
-                if self.announcement_channel_id:
+                if self.announcement_channel_id and not self.suppress_next_announcement:
                     channel = self.guild.get_channel(self.announcement_channel_id)
                     if channel:
                         await channel.send(f":musical_note: Now playing: {self.current_song}")
+                # Reset suppression after handling
+                self.suppress_next_announcement = False
 
                 # Opportunistic prefetch of the next song's stream URL in background
                 self._start_prefetch_next(playback_cog)

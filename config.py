@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- BOT ---
-BOT_PREFIX = ";"
+BOT_PREFIX = os.getenv('BOT_PREFIX', '.')
 
 # --- AUDIO ---
 DEFAULT_VOLUME = 0.15
