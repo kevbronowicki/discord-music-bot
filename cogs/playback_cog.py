@@ -85,7 +85,7 @@ class PlaybackManager(commands.Cog, name="PlaybackManager"):
         else:
             await ctx.send("Not playing anything right now.")
 
-    @commands.command(name='queue', aliases=['q'], help='Shows the current song queue.')
+    @commands.command(name='queue', aliases=['q', 'list'], help='Shows the current song queue.')
     async def queue(self, ctx: commands.Context):
         state = self._get_or_create_state(ctx.guild)
         if state.current_song is None and state.queue.empty():

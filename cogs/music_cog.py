@@ -84,13 +84,9 @@ class Music(commands.Cog, name="Music"):
                     res = await loop.run_in_executor(executor, req.execute)
                     items = res.get('items', [])
                     if items:
-                        return [
-                            (
-                                item['snippet']['title'],
-                                f"https://www.youtube.com/watch?v={item['id']['videoId']}",
-                                None
-                            ) for item in items if item.get('id') and item['id'].get('videoId')
-                        ]
+                        # return the first item
+                        return [(items[0]['snippet']['title'], f"https://www.youtube.com/watch?v={items[0]['id']['videoId']}", None)]
+                        
             except Exception as e:
                 logging.warning(f"YouTube API search failed, falling back to yt_dlp: {e}")
 
