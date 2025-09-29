@@ -24,6 +24,7 @@ COGS_TO_LOAD = [
     'cogs.playback_cog',
     'cogs.music_cog',
     'cogs.tts_cog',
+    'cogs.local_cog',
 ]
 
 class MusicBot(commands.Bot):

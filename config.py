@@ -9,6 +9,8 @@ BOT_PREFIX = ";"
 
 # --- AUDIO ---
 DEFAULT_VOLUME = 0.15
+# Effective output volume used by FFmpeg filter. Can be overridden via MUSIC_VOLUME env var.
+EFFECTIVE_VOLUME = float(os.getenv('MUSIC_VOLUME', str(DEFAULT_VOLUME)))
 
 # --- PLAYBACK ---
 # Timeout in seconds for the bot to disconnect if the queue is empty.
@@ -30,10 +32,6 @@ YT_DLP_OPTIONS = {
     'default_search': 'auto',
     'source_address': '0.0.0.0', # bind to ipv4 since ipv6 can cause issues
     'cookiefile': 'cookies.txt'
-}
-FFMPEG_OPTIONS = {
-    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-    'options': '-vn'
 }
 
 # --- AWS POLLY ---
