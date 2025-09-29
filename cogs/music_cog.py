@@ -80,7 +80,7 @@ class Music(commands.Cog, name="Music"):
                         # Fall through to yt_dlp if API returns nothing
                 else:
                     # Treat as search query
-                    req = self.youtube_api.search().list(q=query, type='video', part='snippet', maxResults=5)
+                    req = self.youtube_api.search().list(q=query, type='video', part='snippet', maxResults=1)
                     res = await loop.run_in_executor(executor, req.execute)
                     items = res.get('items', [])
                     if items:

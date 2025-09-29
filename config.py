@@ -20,7 +20,8 @@ PLAYBACK_TIMEOUT = float(os.getenv('PLAYBACK_TIMEOUT', '300.0')) # Default to 30
 # --- YOUTUBE / YT-DLP ---
 YOUTUBE_API_KEY = os.getenv("youtube_api_key")
 YT_DLP_OPTIONS = {
-    'format': 'bestaudio/best',
+    # Prefer 192 kbps audio when available, then <=192, then best fallback
+    'format': 'bestaudio[abr=192]/bestaudio[abr<=192]/bestaudio/best',
     'outtmpl': 'temp/%(extractor)s-%(id)s-%(title)s.%(ext)s',
     'restrictfilenames': True,
     'noplaylist': True,
