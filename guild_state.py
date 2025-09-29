@@ -17,6 +17,7 @@ class GuildState:
         self.playback_task: asyncio.Task = None
         self.announcement_channel_id: int = None
         self.next_song_event = asyncio.Event()
+        self._prefetch_task: asyncio.Task = None
 
     async def _playback_loop(self):
         """The main loop that fetches from the queue and plays songs."""
@@ -56,6 +57,9 @@ class GuildState:
                     channel = self.guild.get_channel(self.announcement_channel_id)
                     if channel:
                         await channel.send(f":musical_note: Now playing: {self.current_song}")
+
+                # Opportunistic prefetch of the next song's stream URL in background
+                self._start_prefetch_next(playback_cog)
 
                 await self.next_song_event.wait()
 
@@ -97,4 +101,28 @@ class GuildState:
             self.voice_client = None
 
         self.current_song = None
+        if self._prefetch_task:
+            self._prefetch_task.cancel()
+            self._prefetch_task = None
+
+    def _start_prefetch_next(self, playback_cog):
+        # Only prefetch if there is at least one upcoming item and its stream_url is missing
+        if self._prefetch_task and not self._prefetch_task.done():
+            return
+        try:
+            next_song: Song = self.queue._queue[0] if self.queue.qsize() > 0 else None
+        except Exception:
+            next_song = None
+        if not next_song or next_song.stream_url or not next_song.source_url:
+            return
+
+        async def _prefetch():
+            try:
+                stream_url = await playback_cog.get_audio_source_url(next_song.source_url, self.bot.loop)
+                next_song.stream_url = stream_url
+            except Exception:
+                # Ignore prefetch errors; normal path will resolve when needed
+                pass
+
+        self._prefetch_task = self.bot.loop.create_task(_prefetch())
 

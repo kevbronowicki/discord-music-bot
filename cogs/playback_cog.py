@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from functools import partial
+import concurrent.futures
 
 import discord
 import yt_dlp
@@ -16,6 +17,9 @@ class PlaybackManager(commands.Cog, name="PlaybackManager"):
         self.bot = bot
         self.guild_states = {}
         self.ytdl = yt_dlp.YoutubeDL(config.YT_DLP_OPTIONS)
+        # Dedicated thread pool to isolate blocking yt_dlp work from the default executor
+        # and reduce contention with other tasks on the loop.
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=3, thread_name_prefix="yt-extract")
 
     def _get_or_create_state(self, guild: discord.Guild) -> GuildState:
         """Retrieves or creates a GuildState for a given guild."""
@@ -42,7 +46,8 @@ class PlaybackManager(commands.Cog, name="PlaybackManager"):
     async def get_audio_source_url(self, youtube_url: str, loop: asyncio.AbstractEventLoop) -> str:
         """Utility to extract the direct streamable audio URL from a youtube_url."""
         to_run = partial(self.ytdl.extract_info, url=youtube_url, download=False)
-        data = await loop.run_in_executor(None, to_run)
+        # Use the dedicated executor to avoid blocking the default one
+        data = await loop.run_in_executor(self.executor, to_run)
         if not data or 'url' not in data:
             raise ValueError("Could not extract stream URL from youtube_url.")
         return data['url']

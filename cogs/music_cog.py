@@ -40,9 +40,15 @@ class Music(commands.Cog, name="Music"):
             videos = []
             next_page_token = None
             while True:
-                # Run API calls in a separate thread
-                to_run = partial(self.youtube_api.playlistItems().list, playlistId=playlist_id, part='snippet', maxResults=50, pageToken=next_page_token)
-                res = await loop.run_in_executor(None, to_run.execute)
+                # Build the request and execute it in a background thread
+                request = self.youtube_api.playlistItems().list(
+                    playlistId=playlist_id,
+                    part='snippet',
+                    maxResults=50,
+                    pageToken=next_page_token
+                )
+                executor = getattr(self.playback_cog, 'executor', None)
+                res = await loop.run_in_executor(executor, request.execute)
                 
                 videos.extend(res['items'])
                 next_page_token = res.get('nextPageToken')
@@ -52,8 +58,46 @@ class Music(commands.Cog, name="Music"):
             return [(item['snippet']['title'], f"https://www.youtube.com/watch?v={item['snippet']['resourceId']['videoId']}", None) for item in videos if item['snippet']['title'] not in ["Deleted video", "Private video"]]
 
         # Single video or search query handling
+        # Prefer YouTube Data API for search and basic metadata to avoid yt_dlp latency
+        if self.youtube_api:
+            try:
+                executor = getattr(self.playback_cog, 'executor', None)
+                is_url = query.startswith('http://') or query.startswith('https://')
+                if is_url and ('youtube.com/watch' in query or 'youtu.be/' in query):
+                    # Extract videoId from URL
+                    video_id = None
+                    if 'v=' in query:
+                        video_id = query.split('v=')[1].split('&')[0]
+                    elif 'youtu.be/' in query:
+                        video_id = query.split('youtu.be/')[1].split('?')[0].split('&')[0]
+                    if video_id:
+                        req = self.youtube_api.videos().list(id=video_id, part='snippet', maxResults=1)
+                        res = await loop.run_in_executor(executor, req.execute)
+                        items = res.get('items', [])
+                        if items:
+                            title = items[0]['snippet']['title']
+                            return [(title, f"https://www.youtube.com/watch?v={video_id}", None)]
+                        # Fall through to yt_dlp if API returns nothing
+                else:
+                    # Treat as search query
+                    req = self.youtube_api.search().list(q=query, type='video', part='snippet', maxResults=5)
+                    res = await loop.run_in_executor(executor, req.execute)
+                    items = res.get('items', [])
+                    if items:
+                        return [
+                            (
+                                item['snippet']['title'],
+                                f"https://www.youtube.com/watch?v={item['id']['videoId']}",
+                                None
+                            ) for item in items if item.get('id') and item['id'].get('videoId')
+                        ]
+            except Exception as e:
+                logging.warning(f"YouTube API search failed, falling back to yt_dlp: {e}")
+
+        # Fallback: use yt_dlp (may be slower but more tolerant)
         to_run = partial(self.ytdl.extract_info, url=query, download=False)
-        data = await loop.run_in_executor(None, to_run)
+        executor = getattr(self.playback_cog, 'executor', None)
+        data = await loop.run_in_executor(executor, to_run)
         if not data:
             raise ValueError("Could not extract information from YouTube.")
 
