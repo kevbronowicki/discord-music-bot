@@ -1,6 +1,7 @@
 import os
 import asyncio
 import mimetypes
+import difflib
 from typing import List
 
 import discord
@@ -54,20 +55,66 @@ class LocalMusic(commands.Cog, name="LocalMusic"):
             return []
         return [f for f in os.listdir(config.MUSIC_DIR) if self._is_audio_file(f)]
 
-    @commands.command(name='playlocal', aliases=["pl", "local"], help='Queue a local file.')
-    async def local(self, ctx: commands.Context, *, filename: str):
-        await self._play_local(ctx, filename)
-                
-    @commands.command(name='playlocalboosted', aliases=["plb", "localboosted"], help='Queue a local file with bass boost.')
-    async def local_boosted(self, ctx: commands.Context, *, filename: str):
-        await self._play_local(ctx, filename, ffmpeg_filters='bass=g=20')
+    def _normalize_name(self, name: str) -> str:
+        base = os.path.splitext(name)[0]
+        # Replace common separators with spaces and lower
+        normalized = ''.join(ch if ch.isalnum() else ' ' for ch in base).lower()
+        # Collapse multiple spaces
+        return ' '.join(normalized.split())
+
+    def _fuzzy_find_best(self, query: str, files: List[str]):
+        if not files:
+            return None, []
+        q = self._normalize_name(query)
+        # Exact (case-insensitive) filename match
+        lower_map = {f.lower(): f for f in files}
+        if query.lower() in lower_map:
+            return lower_map[query.lower()], []
+
+        # Precompute normalized names
+        norm_map = {f: self._normalize_name(f) for f in files}
+
+        # Prefix matches have priority
+        prefix_matches = [f for f, n in norm_map.items() if n.startswith(q)]
+        if prefix_matches:
+            # Prefer shortest name among prefix matches
+            best = min(prefix_matches, key=lambda f: len(norm_map[f]))
+            return best, []
+
+        # Substring matches next
+        substr_matches = [f for f, n in norm_map.items() if q in n]
+        if substr_matches:
+            # Rank by SequenceMatcher ratio on normalized names
+            best = max(substr_matches, key=lambda f: difflib.SequenceMatcher(None, q, norm_map[f]).ratio())
+            # Provide up to 5 suggestions ranked similarly
+            ranked = sorted(substr_matches, key=lambda f: difflib.SequenceMatcher(None, q, norm_map[f]).ratio(), reverse=True)
+            return best, ranked[:5]
+
+        # Fallback to difflib across all names
+        ranked_all = sorted(files, key=lambda f: difflib.SequenceMatcher(None, q, norm_map[f]).ratio(), reverse=True)
+        best = ranked_all[0] if ranked_all else None
+        return best, ranked_all[:5]
 
     async def _play_local(self, ctx: commands.Context, filename: str, ffmpeg_filters: str = ''):
         async with ctx.typing():
             try:
                 path = self._resolve_local_path(filename)
                 if not os.path.exists(path):
-                    return await ctx.send(f"File not found in music dir: `{filename}`")
+                    # Fuzzy match fallback
+                    files = self._list_local_tracks()
+                    if not files:
+                        return await ctx.send(f"File not found in music dir: `{filename}`")
+
+                    query = os.path.basename(filename).strip()
+                    best, suggestions = self._fuzzy_find_best(query, files)
+                    if not best:
+                        if suggestions:
+                            sug_text = "\n".join([f"- {s}" for s in suggestions])
+                            return await ctx.send(f"File not found: `{filename}`. Did you mean:\n{sug_text}")
+                        return await ctx.send(f"File not found in music dir: `{filename}`")
+
+                    path = self._resolve_local_path(best)
+                    await ctx.send(f"Could not find `{filename}`. Using closest match: **{best}**")
 
                 # Build a single filter chain for FFmpeg
                 filters = [f"volume={config.EFFECTIVE_VOLUME}"]
@@ -92,6 +139,14 @@ class LocalMusic(commands.Cog, name="LocalMusic"):
                     await ctx.send(f":cd: Queued local track **{song.title}**")
             except Exception as e:
                 await ctx.send(f"Failed to queue local file: `{e}`")
+
+    @commands.command(name='playlocal', aliases=["pl", "local"], help='Queue a local file.')
+    async def local(self, ctx: commands.Context, *, filename: str):
+        await self._play_local(ctx, filename)
+                
+    @commands.command(name='playlocalboosted', aliases=["plb", "localboosted"], help='Queue a local file with bass boost.')
+    async def local_boosted(self, ctx: commands.Context, *, filename: str):
+        await self._play_local(ctx, filename, ffmpeg_filters='bass=g=20')
 
     @commands.command(name='locallist', aliases=["ll"], help='List available local audio files.')
     async def locallist(self, ctx: commands.Context):
