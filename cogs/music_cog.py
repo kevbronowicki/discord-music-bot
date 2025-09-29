@@ -119,6 +119,28 @@ class Music(commands.Cog, name="Music"):
     @commands.command(name='pshuffled', aliases=['ps'], help='Plays and shuffles a YouTube playlist.')
     async def play_shuffled(self, ctx: commands.Context, *, playlist_url: str):
         await self._enqueue_youtube_songs(ctx, playlist_url, shuffle=True)
+    
+    @commands.command(name='csgo', help='Clears songs in queue then skips, then plays a Youtube vid')
+    async def csgo(self, ctx: commands.Context, *, query: str):
+        state = self.playback_cog._get_or_create_state(ctx.guild)
+
+        # Clear the queue
+        while not state.queue.empty():
+            try:
+                state.queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
+        # Skip current if playing
+        if state.voice_client and state.voice_client.is_playing():
+            current = str(state.current_song) if state.current_song else "current track"
+            await ctx.send(f":wastebasket: Cleared the queue. :track_next: Skipping {current}")
+            state.voice_client.stop()
+        else:
+            await ctx.send(":wastebasket: Cleared the queue.")
+
+        # Enqueue the requested YouTube video using the shared helper
+        await self._enqueue_youtube_songs(ctx, query)
         
 async def setup(bot: commands.Bot):
     await bot.add_cog(Music(bot))

@@ -116,5 +116,31 @@ class PlaybackManager(commands.Cog, name="PlaybackManager"):
         
         await ctx.send("**:wastebasket: Cleared the queue.**")
 
+    @commands.command(name='clearskip', aliases=['cs'], help='Clears songs in queue then skips')
+    async def clearskip(self, ctx: commands.Context):
+        state = self._get_or_create_state(ctx.guild)
+
+        # Clear the queue
+        cleared_any = not state.queue.empty()
+        while not state.queue.empty():
+            try:
+                state.queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
+        # Skip current song if playing
+        if state.voice_client and state.voice_client.is_playing():
+            current = str(state.current_song) if state.current_song else "current track"
+            if cleared_any:
+                await ctx.send(f":wastebasket: Cleared the queue. :track_next: Skipping {current}")
+            else:
+                await ctx.send(f":track_next: Skipping {current}")
+            state.voice_client.stop()
+        else:
+            if cleared_any:
+                await ctx.send("**:wastebasket: Cleared the queue.** Nothing to skip.")
+            else:
+                await ctx.send("Queue is already empty and nothing is playing.")
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(PlaybackManager(bot))
