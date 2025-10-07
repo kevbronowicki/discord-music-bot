@@ -160,7 +160,7 @@ class Music(commands.Cog, name="Music"):
     async def play_shuffled(self, ctx: commands.Context, *, playlist_url: str):
         await self._enqueue_youtube_songs(ctx, playlist_url, shuffle=True)
     
-    @commands.command(name='csgo', help='Clears songs in queue then skips, then plays a Youtube vid')
+    @commands.command(name='csgo', help='Clears songs in queue then skips, then plays the requested YouTube videos shuffled')
     async def csgo(self, ctx: commands.Context, *, query: str):
         state = self.playback_cog._get_or_create_state(ctx.guild)
 
@@ -180,7 +180,7 @@ class Music(commands.Cog, name="Music"):
             await ctx.send(":wastebasket: Cleared the queue.")
 
         # Enqueue the requested YouTube video using the shared helper
-        await self._enqueue_youtube_songs(ctx, query)
+        await self._enqueue_youtube_songs(ctx, query, shuffle=True)
         
 async def setup(bot: commands.Bot):
     await bot.add_cog(Music(bot))
